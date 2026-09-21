@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   EnrollDialog,
@@ -75,6 +75,10 @@ export function People() {
   useTitle("People");
   const [params, setParams] = useSearchParams();
   const query = queryFromParams(params);
+  const paramsRef = useRef(params);
+  useEffect(() => {
+    paramsRef.current = params;
+  }, [params]);
   const { state, revealEmails } = useStore();
   const [selected, setSelected] = useState<string[]>([]);
   const [saveIds, setSaveIds] = useState<string[] | null>(null);
@@ -85,15 +89,22 @@ export function People() {
   const companyHits = query.q.trim() ? filterCompanies(query.q, "", "").slice(0, 3) : [];
   const linkedin = state.integrations.linkedin.connected;
 
-  const update = (patch: Partial<PeopleQuery>) => {
-    setParams(writeQuery({ ...query, ...patch }), { replace: true });
+  const write = (next: PeopleQuery) => {
+    const written = writeQuery(next);
+    paramsRef.current = written;
+    setParams(written, { replace: true });
     setSelected([]);
   };
 
+  const update = (patch: Partial<PeopleQuery>) => {
+    write({ ...queryFromParams(paramsRef.current), ...patch });
+  };
+
   const toggle = (key: "seniorities" | "cities" | "industries" | "departments" | "sizes", value: string) => {
-    const current = query[key] as string[];
-    const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
-    update({ [key]: next } as Partial<PeopleQuery>);
+    const latest = queryFromParams(paramsRef.current);
+    const list = latest[key] as string[];
+    const next = list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+    write({ ...latest, [key]: next } as PeopleQuery);
   };
 
   const freshSelected = selected.filter((id) => !state.revealedEmails.includes(id));
